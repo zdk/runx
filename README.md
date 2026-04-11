@@ -5,7 +5,9 @@
   </picture>
 </p>
 
-lowfat reduces AI token costs automatically by filtering unnecessary CLI output before it reaches your agent. Wrap commands as shell functions and pipe them through composable processors like `grep`, `cut`, `head`, and `token-budget`.
+lowfat reduces AI token costs automatically by filtering unnecessary CLI output before it reaches your agent.
+
+Wrap commands as shell functions and pipe them through composable processors like `grep`, `cut`, `head`, and `token-budget`.
 
 <p align="center">
   <img src="docs/demo.gif" alt="lowfat demo: git diff before and after" width="700">
@@ -128,12 +130,12 @@ Run `lowfat config` to see the resolved config and validate your `.lowfat` file.
 
 All settings can also be overridden with environment variables:
 
-| Env var | Effect |
-|---------|--------|
-| `LOWFAT_LEVEL` | Override level (`lite`, `full`, `ultra`) |
-| `LOWFAT_DISABLE` | Comma-separated filters to disable |
-| `LOWFAT_HOME` | Plugin/config home (default: `~/.lowfat`) |
-| `LOWFAT_DATA` | Data directory for history db (default: `~/.local/share/lowfat`) |
+| Env var          | Effect                                                           |
+| ---------------- | ---------------------------------------------------------------- |
+| `LOWFAT_LEVEL`   | Override level (`lite`, `full`, `ultra`)                         |
+| `LOWFAT_DISABLE` | Comma-separated filters to disable                               |
+| `LOWFAT_HOME`    | Plugin/config home (default: `~/.lowfat`)                        |
+| `LOWFAT_DATA`    | Data directory for history db (default: `~/.local/share/lowfat`) |
 
 Env vars take priority over `.lowfat` file.
 
@@ -192,18 +194,18 @@ pipeline.deploy.large = grep:ERROR|FAIL | token-budget:500  # output > 10KB
 
 #### Built-in processors
 
-| Processor | Syntax | Description |
-|-----------|--------|-------------|
-| `grep` | `grep:pattern` | Keep lines matching regex |
-| `grep-v` | `grep-v:pattern` | Remove lines matching regex |
-| `head` | `head:N` | First N lines |
-| `truncate` | `truncate:N` | First N characters per line |
-| `cut` | `cut:1,3` or `cut:2-5` | Extract fields (`cut:,;1,3` for comma delimiter) |
-| `strip-ansi` | `strip-ansi` | Remove ANSI escape codes |
-| `token-budget` | `token-budget:N` | Trim to ~N tokens |
-| `dedup-blank` | `dedup-blank` | Collapse consecutive blank lines |
-| `normalize` | `normalize` | Trim whitespace, collapse blanks (runs automatically) |
-| `redact-secrets` | `redact-secrets` | Mask API keys, tokens, passwords |
+| Processor        | Syntax                 | Description                                           |
+| ---------------- | ---------------------- | ----------------------------------------------------- |
+| `grep`           | `grep:pattern`         | Keep lines matching regex                             |
+| `grep-v`         | `grep-v:pattern`       | Remove lines matching regex                           |
+| `head`           | `head:N`               | First N lines                                         |
+| `truncate`       | `truncate:N`           | First N characters per line                           |
+| `cut`            | `cut:1,3` or `cut:2-5` | Extract fields (`cut:,;1,3` for comma delimiter)      |
+| `strip-ansi`     | `strip-ansi`           | Remove ANSI escape codes                              |
+| `token-budget`   | `token-budget:N`       | Trim to ~N tokens                                     |
+| `dedup-blank`    | `dedup-blank`          | Collapse consecutive blank lines                      |
+| `normalize`      | `normalize`            | Trim whitespace, collapse blanks (runs automatically) |
+| `redact-secrets` | `redact-secrets`       | Mask API keys, tokens, passwords                      |
 
 ### Plugins
 
