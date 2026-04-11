@@ -1,0 +1,5 @@
+# Legacy filters-enabled directory (no longer used)
+filters-enabled/
+
+# Rust build artifacts
+target/

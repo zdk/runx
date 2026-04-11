@@ -1,0 +1,3 @@
+[plugin]
+name = "ls-compact"
+commands = ["ls"]

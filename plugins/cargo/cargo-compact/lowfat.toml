@@ -1,0 +1,4 @@
+[plugin]
+name = "cargo-compact"
+commands = ["cargo"]
+subcommands = ["build", "test", "check", "clippy", "run", "add", "update"]

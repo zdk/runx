@@ -1,0 +1,13 @@
+total 52
+drwxr-xr-x 13 warachet staff   416 Apr 10 21:06 .
+drwxr-xr-x 47 warachet staff  1504 Apr 10 10:02 ..
+drwxr-xr-x 14 warachet staff   448 Apr 10 21:08 .git
+drwxr-xr-x  3 warachet staff    96 Apr 10 17:19 .github
+-rw-r--r--  1 warachet staff   101 Apr 10 14:56 .gitignore
+-rw-r--r--  1 warachet staff 20560 Apr 10 20:46 Cargo.lock
+-rw-r--r--  1 warachet staff   815 Apr 10 20:46 Cargo.toml
+drwxr-xr-x  6 warachet staff   192 Apr 10 20:45 crates
+-rw-r--r--  1 warachet staff 11222 Apr  9 23:15 LICENSE
+drwxr-xr-x  7 warachet staff   224 Apr 10 21:05 plugins
+-rw-r--r--  1 warachet staff  4336 Apr 10 21:06 README.md
+drwxr-xr-x  7 warachet staff   224 Apr 10 17:25 target

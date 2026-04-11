@@ -1,0 +1,4 @@
+[plugin]
+name = "git-compact"
+commands = ["git"]
+subcommands = ["status", "diff", "log", "show"]

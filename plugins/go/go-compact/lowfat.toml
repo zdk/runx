@@ -1,0 +1,4 @@
+[plugin]
+name = "go-compact"
+commands = ["go"]
+subcommands = ["build", "test", "vet", "mod"]

@@ -1,0 +1,219 @@
+use crate::level::Level;
+use crate::pipeline::{ConditionalPipelines, parse_conditional_pipeline};
+use std::collections::{HashMap, HashSet};
+use std::env;
+use std::fs;
+use std::path::PathBuf;
+
+/// Resolved lowfat configuration from env + .lowfat file.
+#[derive(Debug)]
+pub struct RunfConfig {
+    pub level: Level,
+    pub disabled: HashSet<String>,
+    /// Some = whitelist mode (only these filters active)
+    pub allowed: Option<HashSet<String>>,
+    pub data_dir: PathBuf,
+    pub plugin_dir: PathBuf,
+    pub home_dir: PathBuf,
+    /// Per-command conditional pipelines from .lowfat config.
+    /// Supports: pipeline.git = ..., pipeline.git.error = ..., pipeline.git.large = ...
+    pub pipelines: HashMap<String, ConditionalPipelines>,
+}
+
+impl RunfConfig {
+    /// Resolve configuration from environment and .lowfat config walking.
+    pub fn resolve() -> Self {
+        let home_dir = env::var("LOWFAT_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| {
+                dirs_home().join(".lowfat")
+            });
+
+        let data_dir = env::var("LOWFAT_DATA")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| {
+                env::var("XDG_DATA_HOME")
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|_| dirs_home().join(".local/share"))
+                    .join("lowfat")
+            });
+
+        let plugin_dir = home_dir.join("plugins");
+
+        // Level: LOWFAT_LEVEL env > .lowfat config > default
+        let mut level = Level::Full;
+        let mut disabled = HashSet::new();
+        let mut allowed: Option<HashSet<String>> = None;
+        // Collect raw pipeline lines for post-processing into ConditionalPipelines
+        // Key: (command, condition) e.g., ("git", "") or ("git", "error")
+        let mut pipeline_lines: HashMap<String, Vec<(String, String)>> = HashMap::new();
+        let mut pipelines = HashMap::new();
+
+        // Parse .lowfat config (walk up from cwd)
+        if let Some(config_path) = find_config() {
+            if let Ok(content) = fs::read_to_string(&config_path) {
+                for line in content.lines() {
+                    let line = line.trim();
+                    if line.is_empty() || line.starts_with('#') {
+                        continue;
+                    }
+                    if let Some(val) = line.strip_prefix("level=") {
+                        if let Ok(l) = val.parse() {
+                            level = l;
+                        }
+                    } else if let Some(val) = line.strip_prefix("filters=") {
+                        allowed = Some(
+                            val.split(',').map(|s| s.trim().to_string()).collect(),
+                        );
+                    } else if let Some(val) = line.strip_prefix("disable=") {
+                        for name in val.split(',') {
+                            disabled.insert(name.trim().to_string());
+                        }
+                    } else if let Some(rest) = line.strip_prefix("pipeline.") {
+                        // pipeline.git = strip-ansi | git-compact | truncate
+                        // pipeline.git.error = strip-ansi | head
+                        // pipeline.git.large = git-compact | token-budget
+                        if let Some((key, spec)) = rest.split_once('=') {
+                            let key = key.trim();
+                            let spec = spec.trim().to_string();
+                            // Split "git.error" → cmd="git", condition="error"
+                            let (cmd, condition) = match key.split_once('.') {
+                                Some((c, cond)) => (c.to_string(), cond.to_string()),
+                                None => (key.to_string(), String::new()),
+                            };
+                            pipeline_lines
+                                .entry(cmd)
+                                .or_default()
+                                .push((condition, spec));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Build ConditionalPipelines from collected lines
+        for (cmd, lines) in pipeline_lines {
+            pipelines.insert(cmd, parse_conditional_pipeline(&lines));
+        }
+
+        // LOWFAT_DISABLE env overrides
+        if let Ok(val) = env::var("LOWFAT_DISABLE") {
+            for name in val.split(',') {
+                disabled.insert(name.trim().to_string());
+            }
+        }
+
+        // LOWFAT_LEVEL env takes highest priority
+        if let Ok(val) = env::var("LOWFAT_LEVEL") {
+            if let Ok(l) = val.parse() {
+                level = l;
+            }
+        }
+
+        RunfConfig {
+            level,
+            disabled,
+            allowed,
+            data_dir,
+            plugin_dir,
+            home_dir,
+            pipelines,
+        }
+    }
+
+    /// Get the conditional pipelines for a command, if configured.
+    pub fn pipeline_for(&self, cmd: &str) -> Option<&ConditionalPipelines> {
+        self.pipelines.get(cmd)
+    }
+
+    /// Check if a filter name is enabled under current config.
+    pub fn is_enabled(&self, name: &str) -> bool {
+        if self.disabled.contains(name) {
+            return false;
+        }
+        if let Some(ref allowed) = self.allowed {
+            return allowed.contains(name);
+        }
+        true
+    }
+}
+
+/// Walk up from cwd to find nearest `.lowfat` config file.
+pub fn find_config() -> Option<PathBuf> {
+    let mut dir = env::current_dir().ok()?;
+    loop {
+        let candidate = dir.join(".lowfat");
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+        if !dir.pop() {
+            return None;
+        }
+    }
+}
+
+fn dirs_home() -> PathBuf {
+    env::var("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("/tmp"))
+}
+
+/// Find the .lowfat config path (exposed for display purposes).
+pub fn find_config_display() -> Option<PathBuf> {
+    find_config()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_enabled_default() {
+        let config = RunfConfig {
+            level: Level::Full,
+            disabled: HashSet::new(),
+            allowed: None,
+            data_dir: PathBuf::new(),
+            plugin_dir: PathBuf::new(),
+            home_dir: PathBuf::new(),
+            pipelines: HashMap::new(),
+        };
+        assert!(config.is_enabled("git"));
+        assert!(config.is_enabled("docker"));
+    }
+
+    #[test]
+    fn is_enabled_disabled() {
+        let mut disabled = HashSet::new();
+        disabled.insert("npm".to_string());
+        let config = RunfConfig {
+            level: Level::Full,
+            disabled,
+            allowed: None,
+            data_dir: PathBuf::new(),
+            plugin_dir: PathBuf::new(),
+            home_dir: PathBuf::new(),
+            pipelines: HashMap::new(),
+        };
+        assert!(!config.is_enabled("npm"));
+        assert!(config.is_enabled("git"));
+    }
+
+    #[test]
+    fn is_enabled_whitelist() {
+        let mut allowed = HashSet::new();
+        allowed.insert("git".to_string());
+        allowed.insert("docker".to_string());
+        let config = RunfConfig {
+            level: Level::Full,
+            disabled: HashSet::new(),
+            allowed: Some(allowed),
+            data_dir: PathBuf::new(),
+            plugin_dir: PathBuf::new(),
+            home_dir: PathBuf::new(),
+            pipelines: HashMap::new(),
+        };
+        assert!(config.is_enabled("git"));
+        assert!(!config.is_enabled("npm"));
+    }
+}

@@ -1,0 +1,21 @@
+
+> myapp@1.0.0 test
+> jest
+
+ PASS  src/utils.test.js
+ PASS  src/api.test.js
+ FAIL  src/auth.test.js
+  ● Auth › should validate token
+
+    expect(received).toBe(expected)
+
+    Expected: true
+    Received: false
+
+      12 |     const result = validateToken(token);
+      13 |     expect(result).toBe(true);
+
+Test Suites: 1 failed, 2 passed, 3 total
+Tests:       1 failed, 15 passed, 16 total
+Snapshots:   0 total
+Time:        2.345 s

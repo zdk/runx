@@ -1,0 +1,18 @@
+# npm audit report
+
+underscore  *
+Severity: critical
+Arbitrary Code Execution - https://github.com/advisories/GHSA-cf4h-3jhx-xvhq
+No fix available
+node_modules/underscore
+
+trim  <0.0.3
+Severity: high
+Regular Expression Denial of Service - https://github.com/advisories/GHSA-w5p7-h5w8-2hfq
+fix available via `npm audit fix`
+node_modules/trim
+
+3 vulnerabilities (1 moderate, 1 high, 1 critical)
+
+To address all issues, run:
+  npm audit fix

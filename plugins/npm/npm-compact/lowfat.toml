@@ -1,0 +1,4 @@
+[plugin]
+name = "npm-compact"
+commands = ["npm"]
+subcommands = ["install", "i", "test", "t", "audit", "run"]

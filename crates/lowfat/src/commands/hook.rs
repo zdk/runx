@@ -1,0 +1,105 @@
+use anyhow::Result;
+use serde_json::{json, Value};
+use std::io::Read;
+
+/// PreToolUse hook for Claude Code.
+/// Reads hook JSON from stdin, rewrites Bash commands to pipe through lowfat.
+pub fn run() -> Result<()> {
+    let mut input = String::new();
+    std::io::stdin().read_to_string(&mut input)?;
+
+    let payload: Value = serde_json::from_str(&input)?;
+
+    let tool = payload["tool_name"].as_str().unwrap_or("");
+    if tool != "Bash" {
+        // Not a Bash call — pass through
+        return Ok(());
+    }
+
+    let command = match payload["tool_input"]["command"].as_str() {
+        Some(cmd) => cmd,
+        None => return Ok(()),
+    };
+
+    // Extract the base command (first word)
+    let base_cmd = command.split_whitespace().next().unwrap_or("");
+
+    // Skip if already wrapped or is a lowfat command itself
+    if base_cmd == "lowfat" || base_cmd == "lf" {
+        return Ok(());
+    }
+
+    // Check if this command has a filter available
+    let config = lowfat_core::config::RunfConfig::resolve();
+    if !config.is_enabled(base_cmd) {
+        return Ok(());
+    }
+
+    // Check if we have a filter for this command (native or plugin)
+    let builtins = crate::filters::builtins();
+    let plugins = lowfat_plugin::discovery::discover_plugins(&config.plugin_dir);
+    let plugin_map = lowfat_plugin::discovery::resolve_plugins(&plugins);
+    let has_filter = builtins.contains_key(base_cmd)
+        || plugin_map.contains_key(base_cmd)
+        || config.pipeline_for(base_cmd).is_some();
+
+    if !has_filter {
+        return Ok(());
+    }
+
+    // Rewrite: "git status" → "lowfat git status"
+    let rewritten = format!("lowfat {command}");
+
+    let output = json!({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "allow",
+            "updatedInput": {
+                "command": rewritten,
+                "description": payload["tool_input"]["description"]
+            }
+        }
+    });
+
+    println!("{}", serde_json::to_string(&output)?);
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    /// Simulate hook processing by extracting the rewrite logic.
+    fn rewrite_command(command: &str) -> Option<String> {
+        let base_cmd = command.split_whitespace().next()?;
+        if base_cmd == "lowfat" || base_cmd == "lf" {
+            return None;
+        }
+        let builtins = crate::filters::builtins();
+        if builtins.contains_key(base_cmd) {
+            Some(format!("lowfat {command}"))
+        } else {
+            None
+        }
+    }
+
+    #[test]
+    fn rewrites_git_command() {
+        let result = rewrite_command("git status");
+        assert_eq!(result, Some("lowfat git status".into()));
+    }
+
+    #[test]
+    fn rewrites_docker_command() {
+        let result = rewrite_command("docker ps");
+        assert_eq!(result, Some("lowfat docker ps".into()));
+    }
+
+    #[test]
+    fn skips_already_wrapped() {
+        assert_eq!(rewrite_command("lowfat git status"), None);
+    }
+
+    #[test]
+    fn skips_unknown_command() {
+        assert_eq!(rewrite_command("curl https://example.com"), None);
+    }
+}

@@ -1,0 +1,193 @@
+commit fd390d1b83d00865db5def129216a5ebcc45ca1e
+Author: zdk <di.warachet@gmail.com>
+Date:   Fri Apr 10 21:06:49 2026 +0700
+
+    add go reference plugin
+    
+    Demonstrates binary runtime with JSON contract.
+    Filters go build, test, vet, and mod output by level.
+    Build with: go build -o filter main.go
+
+diff --git README.md README.md
+index 2fcb418..0e74d64 100644
+--- README.md
++++ README.md
+@@ -119,6 +119,7 @@ plugins/
+   docker/docker-compact/   # shell — ps, images, logs, build, pull, compose
+   ls/ls-compact/           # shell — strip "total", ultra = filenames only
+   npm/npm-compact/         # node  — install, test, audit, run
++  go/go-compact/           # go    — build, test, vet, mod (go build -o filter)
+ ```
+ 
+ ### Manage Plugins
+diff --git plugins/go/go-compact/lowfat.toml plugins/go/go-compact/lowfat.toml
+new file mode 100644
+index 0000000..b71a7bf
+--- /dev/null
++++ plugins/go/go-compact/lowfat.toml
+@@ -0,0 +1,14 @@
++[plugin]
++name = "go-compact"
++commands = ["go"]
++subcommands = ["build", "test", "vet", "mod"]
++
++[runtime]
++type = "binary"
++entry = "filter"
++
++[input]
++format = "json"
++
++[result]
++format = "json"
+diff --git plugins/go/go-compact/main.go plugins/go/go-compact/main.go
+new file mode 100644
+index 0000000..0f9e575
+--- /dev/null
++++ plugins/go/go-compact/main.go
+@@ -0,0 +1,145 @@
++// go-compact — compact go output for LLM contexts
++// Build: go build -o filter main.go
++// input:  JSON { command, subcommand, args, level, exit_code, raw }
++// output: JSON { output: "filtered text" }
++package main
++
++import (
++	"encoding/json"
++	"io"
++	"os"
++	"strings"
++)
++
++type Input struct {
++	Command    string   `json:"command"`
++	Subcommand string   `json:"subcommand"`
++	Args       []string `json:"args"`
++	Level      string   `json:"level"`
++	ExitCode   int      `json:"exit_code"`
++	Raw        string   `json:"raw"`
++}
++
++type Output struct {
++	Text string `json:"output"`
++}
++
++func main() {
++	data, _ := io.ReadAll(os.Stdin)
++
++	var input Input
++	json.Unmarshal(data, &input)
++
++	lines := strings.Split(input.Raw, "\n")
++	var filtered string
++
++	switch input.Subcommand {
++	case "build":
++		filtered = filterBuild(lines, input.Level)
++	case "test":
++		filtered = filterTest(lines, input.Level)
++	case "vet":
++		filtered = filterVet(lines, input.Level)
++	case "mod":
++		filtered = filterMod(lines, input.Level)
++	default:
++		filtered = head(lines, 30)
++	}
++
++	json.NewEncoder(os.Stdout).Encode(Output{Text: filtered})
++}
++
++func filterBuild(lines []string, level string) string {
++	if level == "ultra" {
++		// Errors only
++		var out []string
++		for _, l := range lines {
++			if strings.Contains(l, ": ") && (strings.Contains(l, "error") || strings.Contains(l, "undefined") || strings.Contains(l, "cannot")) {
++				out = append(out, l)
++			}
++		}
++		if len(out) == 0 {
++			return "go build: ok"
++		}
++		return head(out, 10)
++	}
++	// Strip "# package" comment lines in full/lite
++	var out []string
++	for _, l := range lines {
++		if !strings.HasPrefix(l, "# ") {
++			out = append(out, l)
++		}
++	}
++	limit := 30
++	if level == "lite" {
++		limit = 60
++	}
++	return head(out, limit)
++}
++
++func filterTest(lines []string, level string) string {
++	if level == "ultra" {
++		// Pass/fail summary + FAIL lines only
++		var out []string
++		for _, l := range lines {
++			if strings.HasPrefix(l, "ok ") || strings.HasPrefix(l, "FAIL") || strings.HasPrefix(l, "---") {
++				out = append(out, l)
++			}
++		}
++		return head(out, 15)
++	}
++	// Strip verbose test output noise
++	var out []string
++	for _, l := range lines {
++		trimmed := strings.TrimSpace(l)
++		if trimmed == "" || strings.HasPrefix(trimmed, "=== RUN") || strings.HasPrefix(trimmed, "=== PAUSE") || strings.HasPrefix(trimmed, "=== CONT") {
++			continue
++		}
++		out = append(out, l)
++	}
++	limit := 30
++	if level == "lite" {
++		limit = 60
++	}
++	return head(out, limit)
++}
++
++func filterVet(lines []string, level string) string {
++	if level == "ultra" {
++		var out []string
++		for _, l := range lines {
++			if strings.Contains(l, ": ") && l != "" {
++				out = append(out, l)
++			}
++		}
++		if len(out) == 0 {
++			return "go vet: ok"
++		}
++		return head(out, 10)
++	}
++	return head(lines, 30)
++}
++
++func filterMod(lines []string, level string) string {
++	if level == "ultra" {
++		// Keep only go get/require changes
++		var out []string
++		for _, l := range lines {
++			if strings.HasPrefix(l, "go:") || strings.Contains(l, "added") || strings.Contains(l, "upgraded") || strings.Contains(l, "removed") {
++				out = append(out, l)
++			}
++		}
++		if len(out) == 0 {
++			return "go mod: ok"
++		}
++		return head(out, 10)
++	}
++	return head(lines, 30)
++}
++
++func head(lines []string, n int) string {
++	if len(lines) > n {
++		lines = lines[:n]
++	}
++	return strings.Join(lines, "\n")
++}

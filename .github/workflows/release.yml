@@ -1,0 +1,188 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+
+      - name: Package
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf ../../../lowfat-${{ matrix.target }}.tar.gz lowfat
+          cd ../../..
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lowfat-${{ matrix.target }}
+          path: lowfat-${{ matrix.target }}.tar.gz
+
+  publish-crates:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install test runtimes
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.4 ruby
+
+      - name: Verify tag matches workspace version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "::error::Tag v$TAG does not match workspace version $VERSION"
+            exit 1
+          fi
+
+      - name: Build and test
+        run: cargo test --workspace
+
+      # Publish in dependency order: core → plugin → runner → cli
+      - name: Publish lowfat-core
+        run: cargo publish -p lowfat-core
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Wait for index
+        run: sleep 30
+
+      - name: Publish lowfat-plugin
+        run: cargo publish -p lowfat-plugin
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Wait for index
+        run: sleep 30
+
+      - name: Publish lowfat-runner
+        run: cargo publish -p lowfat-runner
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Wait for index
+        run: sleep 30
+
+      - name: Publish lowfat
+        run: cargo publish -p lowfat
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  github-release:
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            artifacts/*.tar.gz
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-homebrew:
+    needs: [github-release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update Homebrew formula
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          SHA256=$(curl -sL "https://github.com/zdk/lowfat/archive/refs/tags/${TAG}.tar.gz" | sha256sum | cut -d' ' -f1)
+
+          # Clone the tap repo
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/zdk/homebrew-tools.git" tap
+          cd tap
+
+          # Update the formula
+          cat > Formula/lowfat.rb << FORMULA
+          class Lowfat < Formula
+            desc "Low-fat command output for LLM environments"
+            homepage "https://github.com/zdk/lowfat"
+            url "https://github.com/zdk/lowfat/archive/refs/tags/${TAG}.tar.gz"
+            version "${VERSION}"
+            sha256 "${SHA256}"
+            license "Apache-2.0"
+
+            depends_on "rust" => :build
+
+            def install
+              system "cargo", "install", *std_cargo_args(path: "crates/lowfat"), "--bin", "lowfat"
+            end
+
+            def caveats
+              <<~EOS
+                Add to your shell profile (~/.zshrc or ~/.bashrc):
+
+                  eval "\$(lowfat shell-init zsh)"
+              EOS
+            end
+
+            test do
+              assert_match "lowfat", shell_output("\#{bin}/lowfat --version")
+            end
+          end
+          FORMULA
+
+          # Commit and push
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/lowfat.rb
+          git commit -m "lowfat ${VERSION}" || exit 0
+          git push
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}

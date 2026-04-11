@@ -1,0 +1,355 @@
+diff --git README.md README.md
+index 2fcb418..0e74d64 100644
+--- README.md
++++ README.md
+@@ -119,6 +119,7 @@ plugins/
+   docker/docker-compact/   # shell — ps, images, logs, build, pull, compose
+   ls/ls-compact/           # shell — strip "total", ultra = filenames only
+   npm/npm-compact/         # node  — install, test, audit, run
++  go/go-compact/           # go    — build, test, vet, mod (go build -o filter)
+ ```
+ 
+ ### Manage Plugins
+diff --git crates/lowfat-cli/src/commands/plugin.rs crates/lowfat-cli/src/commands/plugin.rs
+index c9f8796..f0b802a 100644
+--- crates/lowfat-cli/src/commands/plugin.rs
++++ crates/lowfat-cli/src/commands/plugin.rs
+@@ -195,12 +195,23 @@ entry = "{entry}"
+         std::fs::write(plugin_dir.join(entry), &filter_code)?;
+     }
+ 
++    // Scaffold samples/ directory with an example sample file
++    let samples_dir = plugin_dir.join("samples");
++    std::fs::create_dir_all(&samples_dir)?;
++    let sample_cmd = cmds.first().unwrap_or(&"cmd");
++    let sample_file = format!("{sample_cmd}-output-full.txt");
++    std::fs::write(
++        samples_dir.join(&sample_file),
++        "# Paste real command output here.\n# Filename convention: <command>-<subcommand>-<level>.txt\n# Run: lowfat plugin bench <name>\n",
++    )?;
++
+     // Auto-trust the plugin
+     lowfat_plugin::security::trust_plugin(name, &config.home_dir)?;
+ 
+     println!("lowfat: created plugin '{name}'");
+     println!("  {}", plugin_dir.display());
+     println!("  edit: {}", plugin_dir.join(entry).display());
++    println!("  bench: lowfat plugin bench {name}");
+     println!("  test: lowfat {} <args>", cmds.first().unwrap_or(&""));
+     Ok(())
+ }
+@@ -299,6 +310,122 @@ await Deno.writeAll(Deno.stdout, new TextEncoder().encode(JSON.stringify({ outpu
+     .to_string()
+ }
+ 
++pub fn bench(name: &str) -> Result<()> {
++    let config = RunfConfig::resolve();
++    let plugins = discover_plugins(&config.plugin_dir);
++
++    let plugin = plugins
++        .iter()
++        .find(|p| p.manifest.plugin.name == name);
++
++    let plugin = match plugin {
++        Some(p) => p,
++        None => {
++            // Also check repo plugins/ directory
++            anyhow::bail!("plugin not found: {name} (install it to ~/.lowfat/plugins/ first)");
++        }
++    };
++
++    let samples_dir = plugin.base_dir.join("samples");
++    if !samples_dir.is_dir() {
++        anyhow::bail!("no samples/ directory in plugin '{name}' — add .txt files with sample command output");
++    }
++
++    let mut entries: Vec<_> = std::fs::read_dir(&samples_dir)?
++        .filter_map(|e| e.ok())
++        .filter(|e| e.path().extension().map_or(false, |ext| ext == "txt"))
++        .collect();
++    entries.sort_by_key(|e| e.path());
++
++    if entries.is_empty() {
++        anyhow::bail!("no .txt sample files in {}", samples_dir.display());
++    }
++
++    // Build the process filter
++    let process_filter = lowfat_runner::process::ProcessFilter {
++        info: lowfat_plugin::plugin::PluginInfo {
++            name: plugin.manifest.plugin.name.clone(),
++            version: plugin.manifest.plugin.version.clone().unwrap_or_default(),
++            commands: plugin.manifest.plugin.commands.clone(),
++            subcommands: plugin.manifest.plugin.subcommands.clone().unwrap_or_default(),
++        },
++        runtime_type: plugin.manifest.runtime.runtime_type,
++        entry: plugin.base_dir.join(&plugin.manifest.runtime.entry),
++        base_dir: plugin.base_dir.clone(),
++        custom_command: plugin.manifest.runtime.command.clone(),
++        input_format: plugin.manifest.input.as_ref()
++            .and_then(|i| i.format.clone()).unwrap_or_else(|| "raw".into()),
++        result_format: plugin.manifest.result.as_ref()
++            .and_then(|r| r.format.clone()).unwrap_or_else(|| "raw".into()),
++    };
++
++    println!("Benchmark: {name}");
++    println!();
++
++    let mut total_raw = 0usize;
++    let mut total_filtered = 0usize;
++
++    for entry in &entries {
++        let path = entry.path();
++        let sample_name = path.file_stem().unwrap_or_default().to_string_lossy();
++
++        // Parse sample name: "git-status-full.txt" → command=git, subcommand=status, level=full
++        let parts: Vec<&str> = sample_name.split('-').collect();
++        let (command, subcommand, level_str) = match parts.len() {
++            1 => (parts[0], "", "full"),
++            2 => (parts[0], parts[1], "full"),
++            _ => (parts[0], parts[1], parts[parts.len() - 1]),
++        };
++
++        let level = match level_str {
++            "lite" => lowfat_core::level::Level::Lite,
++            "ultra" => lowfat_core::level::Level::Ultra,
++            _ => lowfat_core::level::Level::Full,
++        };
++
++        let raw = std::fs::read_to_string(&path)?;
++        let raw_tokens = lowfat_core::tokens::estimate_tokens(&raw);
++
++        let input = lowfat_plugin::plugin::FilterInput {
++            raw: raw.clone(),
++            command: command.to_string(),
++            subcommand: subcommand.to_string(),
++            args: vec![],
++            level,
++            head_limit: level.head_limit(40),
++            exit_code: 0,
++        };
++
++        use lowfat_plugin::plugin::FilterPlugin;
++        let result = process_filter.filter(&input)?;
++        let filtered_tokens = lowfat_core::tokens::estimate_tokens(&result.text);
++        let pct = if raw_tokens > 0 {
++            (1.0 - filtered_tokens as f64 / raw_tokens as f64) * 100.0
++        } else {
++            0.0
++        };
++
++        total_raw += raw_tokens;
++        total_filtered += filtered_tokens;
++
++        println!(
++            "  {:<30} {:>6} → {:>6} tokens  ({:>-3.0}%)",
++            format!("{sample_name} ({level})"), raw_tokens, filtered_tokens, -pct
++        );
++    }
++
++    if total_raw > 0 {
++        let total_pct = (1.0 - total_filtered as f64 / total_raw as f64) * 100.0;
++        println!();
++        println!(
++            "  {:<30} {:>6} → {:>6} tokens  ({:>-3.0}%)",
++            "TOTAL", total_raw, total_filtered, -total_pct
++        );
++    }
++
++    Ok(())
++}
++
+ fn which(bin: &str) -> bool {
+     std::process::Command::new("which")
+         .arg(bin)
+diff --git crates/lowfat-cli/src/main.rs crates/lowfat-cli/src/main.rs
+index ab2ca0c..3744f3d 100644
+--- crates/lowfat-cli/src/main.rs
++++ crates/lowfat-cli/src/main.rs
+@@ -69,6 +69,8 @@ enum PluginAction {
+     Trust { name: String },
+     /// Revoke trust for a plugin
+     Untrust { name: String },
++    /// Benchmark a plugin against its samples
++    Bench { name: String },
+     /// Scaffold a new plugin
+     New {
+         /// Plugin name (e.g., eslint-compact)
+@@ -100,6 +102,7 @@ fn main() {
+             PluginAction::Info { name } => commands::plugin::info(&name),
+             PluginAction::Trust { name } => commands::plugin::trust(&name),
+             PluginAction::Untrust { name } => commands::plugin::untrust(&name),
++            PluginAction::Bench { name } => commands::plugin::bench(&name),
+             PluginAction::New { name, runtime, commands } => {
+                 commands::plugin::new_plugin(&name, &runtime, &commands)
+             }
+diff --git plugins/go/go-compact/lowfat.toml plugins/go/go-compact/lowfat.toml
+new file mode 100644
+index 0000000..b71a7bf
+--- /dev/null
++++ plugins/go/go-compact/lowfat.toml
+@@ -0,0 +1,14 @@
++[plugin]
++name = "go-compact"
++commands = ["go"]
++subcommands = ["build", "test", "vet", "mod"]
++
++[runtime]
++type = "binary"
++entry = "filter"
++
++[input]
++format = "json"
++
++[result]
++format = "json"
+diff --git plugins/go/go-compact/main.go plugins/go/go-compact/main.go
+new file mode 100644
+index 0000000..0f9e575
+--- /dev/null
++++ plugins/go/go-compact/main.go
+@@ -0,0 +1,145 @@
++// go-compact — compact go output for LLM contexts
++// Build: go build -o filter main.go
++// input:  JSON { command, subcommand, args, level, exit_code, raw }
++// output: JSON { output: "filtered text" }
++package main
++
++import (
++	"encoding/json"
++	"io"
++	"os"
++	"strings"
++)
++
++type Input struct {
++	Command    string   `json:"command"`
++	Subcommand string   `json:"subcommand"`
++	Args       []string `json:"args"`
++	Level      string   `json:"level"`
++	ExitCode   int      `json:"exit_code"`
++	Raw        string   `json:"raw"`
++}
++
++type Output struct {
++	Text string `json:"output"`
++}
++
++func main() {
++	data, _ := io.ReadAll(os.Stdin)
++
++	var input Input
++	json.Unmarshal(data, &input)
++
++	lines := strings.Split(input.Raw, "\n")
++	var filtered string
++
++	switch input.Subcommand {
++	case "build":
++		filtered = filterBuild(lines, input.Level)
++	case "test":
++		filtered = filterTest(lines, input.Level)
++	case "vet":
++		filtered = filterVet(lines, input.Level)
++	case "mod":
++		filtered = filterMod(lines, input.Level)
++	default:
++		filtered = head(lines, 30)
++	}
++
++	json.NewEncoder(os.Stdout).Encode(Output{Text: filtered})
++}
++
++func filterBuild(lines []string, level string) string {
++	if level == "ultra" {
++		// Errors only
++		var out []string
++		for _, l := range lines {
++			if strings.Contains(l, ": ") && (strings.Contains(l, "error") || strings.Contains(l, "undefined") || strings.Contains(l, "cannot")) {
++				out = append(out, l)
++			}
++		}
++		if len(out) == 0 {
++			return "go build: ok"
++		}
++		return head(out, 10)
++	}
++	// Strip "# package" comment lines in full/lite
++	var out []string
++	for _, l := range lines {
++		if !strings.HasPrefix(l, "# ") {
++			out = append(out, l)
++		}
++	}
++	limit := 30
++	if level == "lite" {
++		limit = 60
++	}
++	return head(out, limit)
++}
++
++func filterTest(lines []string, level string) string {
++	if level == "ultra" {
++		// Pass/fail summary + FAIL lines only
++		var out []string
++		for _, l := range lines {
++			if strings.HasPrefix(l, "ok ") || strings.HasPrefix(l, "FAIL") || strings.HasPrefix(l, "---") {
++				out = append(out, l)
++			}
++		}
++		return head(out, 15)
++	}
++	// Strip verbose test output noise
++	var out []string
++	for _, l := range lines {
++		trimmed := strings.TrimSpace(l)
++		if trimmed == "" || strings.HasPrefix(trimmed, "=== RUN") || strings.HasPrefix(trimmed, "=== PAUSE") || strings.HasPrefix(trimmed, "=== CONT") {
++			continue
++		}
++		out = append(out, l)
++	}
++	limit := 30
++	if level == "lite" {
++		limit = 60
++	}
++	return head(out, limit)
++}
++
++func filterVet(lines []string, level string) string {
++	if level == "ultra" {
++		var out []string
++		for _, l := range lines {
++			if strings.Contains(l, ": ") && l != "" {
++				out = append(out, l)
++			}
++		}
++		if len(out) == 0 {
++			return "go vet: ok"
++		}
++		return head(out, 10)
++	}
++	return head(lines, 30)
++}
++
++func filterMod(lines []string, level string) string {
++	if level == "ultra" {
++		// Keep only go get/require changes
++		var out []string
++		for _, l := range lines {
++			if strings.HasPrefix(l, "go:") || strings.Contains(l, "added") || strings.Contains(l, "upgraded") || strings.Contains(l, "removed") {
++				out = append(out, l)
++			}
++		}
++		if len(out) == 0 {
++			return "go mod: ok"
++		}
++		return head(out, 10)
++	}
++	return head(lines, 30)
++}
++
++func head(lines []string, n int) string {
++	if len(lines) > n {
++		lines = lines[:n]
++	}
++	return strings.Join(lines, "\n")
++}

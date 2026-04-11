@@ -1,0 +1,4 @@
+# github.com/example/api
+./handler.go:15:2: undefined: NewRouter
+./handler.go:23:14: cannot use resp (variable of type *Response) as type io.Writer in argument to fmt.Fprintf
+./middleware.go:8:9: imported and not used: "context"

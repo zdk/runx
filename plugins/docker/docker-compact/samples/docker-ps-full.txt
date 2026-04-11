@@ -1,0 +1,5 @@
+CONTAINER ID   IMAGE                                                   COMMAND                  CREATED        STATUS        PORTS                                                                 NAMES
+45d4d2cc31cc   docker-hub-mirror.linecorp.com/pgvector/pgvector:pg17   "docker-entrypoint.s…"   35 hours ago   Up 35 hours   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp                           rag-pgvector-db-1
+852b90664d23   kindest/node:v1.34.0                                    "/usr/local/bin/entr…"   2 weeks ago    Up 2 days     127.0.0.1:62935->6443/tcp                                             chiku-demo-control-plane
+1bc67c4507f1   kindest/node:v1.34.0                                    "/usr/local/bin/entr…"   2 weeks ago    Up 2 days     0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp, 127.0.0.1:55277->6443/tcp   fugu-dev-control-plane
+a9708a1f93cd   kindest/node:v1.34.0                                    "/usr/local/bin/entr…"   6 weeks ago    Up 2 days     127.0.0.1:60455->6443/tcp                                             pgbouncer-lab-control-plane

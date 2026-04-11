@@ -1,0 +1,52 @@
+WARNING: This output is designed for human readability. For machine-readable output, please use --format.
+IMAGE                                                           ID             DISK USAGE   CONTENT SIZE   EXTRA
+alpine/socat:1.7.4.4                                            93efcf633c54         14MB         3.89MB        
+alpine:3.21                                                     c3f8e73fdb79       12.9MB         4.08MB        
+chiku-controller:demo                                           29d7e8218c9f       73.3MB         22.5MB        
+chiku-controller:e2e                                            72e5a2682471       73.3MB         22.5MB        
+chiku-testapp:e2e                                               66c4eb5bffd2       25.2MB         8.24MB        
+cliapp:09803be                                                  c9ae2714ed00       25.2MB         8.24MB        
+cliapp:4da389c                                                  57522d1065d4       25.2MB         8.24MB        
+cliapp:d5a5aa1                                                  b27ff0838f7d       25.2MB         8.24MB        
+demoapp:b6db1ed                                                 1e353e419d9e       25.2MB         8.24MB        
+django-example:test                                             865b0e7c1f4f        276MB         55.1MB        
+docker-hub-mirror.linecorp.com/pgvector/pgvector:pg17           494dff7e67e7        646MB          156MB   U    
+docker/desktop-cloud-provider-kind:v0.5.0                       4ad59ce20658        574MB          150MB   U    
+docker/desktop-containerd-registry-mirror:v0.0.3                179a9ea3ae47       48.8MB         15.5MB   U    
+earthly/buildkitd:v0.8.16                                       58da3c58b747        407MB          115MB   U    
+envoyproxy/envoy:v1.36.4                                        08acc53db6f4        233MB         58.8MB        
+example.com/tproxy-operator:v0.0.1                              a172307880b4        112MB         32.3MB        
+express-example:test                                            8a8398ab866b        249MB         61.1MB        
+fugu-controller:dev                                             a5b45fde1174       73.3MB         22.5MB        
+fugu-controller:e2e                                             b991458894cc       72.9MB         22.5MB        
+fugu-e2e/testapp:latest                                         4d1d3929f45a       24.2MB         7.45MB        
+fugu-testapp:e2e                                                5df02249d652       25.2MB         8.24MB        
+ghcr.io/c8s-co/chiku:46fd536                                    a44ff77dd53a       25.2MB         8.24MB        
+ghcr.io/c8s-co/chiku:a3f93dd                                    efa39abb6fe2       25.2MB         8.24MB        
+ghcr.io/neutronth/kpt-update-ksops-secrets:0.14                 ff3d0ef4281d        230MB         59.5MB        
+harbor.linecorp.com/th-datalabs/rag-pgvector-ingest:0.2614.0    04262c001468       5.96MB         5.96MB        
+harbor.linecorp.com/th-datalabs/rag-pgvector-ingest:latest      04059bb955a3       19.7MB         5.52MB        
+harbor.linecorp.com/th-datalabs/rag-pgvector:0.2614.0           71808e2372a9       8.51MB         8.51MB        
+harbor.linecorp.com/th-datalabs/rag-pgvector:latest             71808e2372a9       8.51MB         8.51MB        
+harbor.linecorp.com/thdevops/lfb-foundation:v1.2610.3           45a0acba579d        382MB          382MB        
+harbor.linecorp.com/thdevops/tproxy/tproxy-agent:v1.2604.1      ad5bce2e68c3         39MB           39MB        
+harbor.linecorp.com/thdevops/tproxy/tproxy-agent:v1.2613.2      ae84ed4ad3d3         39MB           39MB        
+harbor.linecorp.com/thdevops/tproxy/tproxy-operator:v1.2604.1   0a6f1965c14f       34.6MB         34.6MB        
+harbor.linecorp.com/thdevops/tproxy/tproxy-operator:v1.2613.2   8a01ea28a967       34.6MB         34.6MB        
+harbor.linecorp.com/tw-sre/docker-sia:v0.6.1                    156bd472521b        270MB         76.5MB   U    
+imega/jq:latest                                                 39d079b17c95       2.61MB          811kB        
+kindest/node:v1.34.0                                            7416a61b42b1       1.48GB          441MB   U    
+kindest/node:v1.35.0                                            4613778f3cfc       1.31GB          363MB   U    
+moby/buildkit:buildx-stable-1                                   37539dd4d60f        345MB          104MB        
+nginx:latest                                                    341bf0f3ce6c        258MB         64.1MB   U    
+ollama/ollama:latest                                            e23e64998903       8.71GB         3.16GB   U    
+pg-search-thai-test:latest                                      0d36e6beac60       1.84GB          420MB        
+pgvector/pgvector:pg17                                          494dff7e67e7        646MB          156MB   U    
+rag-pgvector-ingest:0.2614.0                                    04059bb955a3       19.7MB         5.52MB        
+rag-pgvector-ingest:latest                                      04059bb955a3       19.7MB         5.52MB        
+rag-pgvector:0.2614.0                                           428cb7162da4       28.3MB          7.9MB        
+rag-pgvector:latest                                             428cb7162da4       28.3MB          7.9MB        
+rails-example:test                                              3829303545de        737MB          186MB        
+rm-safely-alpine:latest                                         192c908c8660       30.9MB         7.22MB        
+rm-safely-ubuntu:latest                                         327ee2afa7ca        168MB         34.8MB        
+testapp:46fd536                                                 050d8f3a2f43       25.2MB         8.24MB        

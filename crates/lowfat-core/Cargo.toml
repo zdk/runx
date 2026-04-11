@@ -1,0 +1,24 @@
+[package]
+name = "lowfat-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Core types, config, tokens, SQLite tracking for lowfat"
+
+[dependencies]
+anyhow = { workspace = true }
+regex = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+rusqlite = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+criterion = { workspace = true }
+
+[[bench]]
+name = "core_bench"
+harness = false

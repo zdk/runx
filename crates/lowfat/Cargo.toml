@@ -1,0 +1,20 @@
+[package]
+name = "lowfat"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "CLI binary for lowfat"
+
+[[bin]]
+name = "lowfat"
+path = "src/main.rs"
+
+[dependencies]
+lowfat-core = { workspace = true }
+lowfat-plugin = { workspace = true }
+lowfat-runner = { workspace = true }
+anyhow = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
