@@ -91,15 +91,15 @@ LOWFAT_LEVEL=lite lowfat git log  # per-command override
 
 #### Inspecting state
 
-```sh
-lowfat config             # show resolved config and validate .lowfat
-lowfat filters            # list enabled/disabled filters
-lowfat pipeline git       # show active pipeline for a command
-lowfat gain               # show lifetime token savings report
-lowfat history candidates # rank your most-used commands as plugin candidates
-lowfat audit              # show recent plugin executions
-lowfat status             # show status badge
-```
+| Command             | Shows                                         |
+| ------------------- | --------------------------------------------- |
+| `config`            | resolved config, validates `.lowfat`          |
+| `filters`           | enabled/disabled filters                      |
+| `pipeline <cmd>`    | active pipeline for a command                 |
+| `gain`              | lifetime token savings report                 |
+| `history`           | plugin candidates, ranked (see below)         |
+| `audit`             | recent plugin executions                      |
+| `status`            | compact status badge                          |
 
 ### Config file
 
@@ -138,15 +138,7 @@ All settings can also be overridden with environment variables:
 | `LOWFAT_HOME`    | Plugin/config home (default: `~/.lowfat`)                        |
 | `LOWFAT_DATA`    | Data directory for history db (default: `~/.local/share/lowfat`) |
 
-### Local usage history
-
-lowfat keeps a small SQLite db at `$LOWFAT_DATA/history.db` (default `~/.local/share/lowfat/history.db`). Nothing is sent anywhere — it's purely local.
-
-`lowfat history candidates` (or bare `lowfat history`) uses it to surface commands that are worth writing a plugin for: called often, produce large output, and aren't being shrunk much yet. Only the command name and first non-flag arg (e.g. `git`, `status`) are stored per invocation — never full arguments, output, paths, or secrets. Retention is capped at 10,000 rows; oldest are evicted automatically.
-
-Reset the db any time with `rm ~/.local/share/lowfat/history.db` — it's recreated on the next run.
-
-Env vars take priority over `.lowfat` file.
+Env vars take priority over `.lowfat` file. History and gain data live at `$LOWFAT_DATA/history.db` (default `~/.local/share/lowfat/history.db`) — delete the file to reset.
 
 ### Token savings
 
@@ -160,6 +152,20 @@ Env vars take priority over `.lowfat` file.
 | `cargo test`   | 1,499t | 171t     | **88%** |
 | `docker ps`    | 271t   | 41t      | **85%** |
 | `ls -la`       | 192t   | 30t      | **84%** |
+
+### Find plugin gaps
+
+`lowfat history` ranks your real usage by `runs × avg tokens × (1 − savings)` so commands that run often, produce a lot of output, and aren't being trimmed yet float to the top — exactly the ones worth writing a plugin for.
+
+```
+  #  command                    runs    avg raw   savings  plugin
+  1  git status                  12x         59     91.5%     yes
+  2  ls                           8x        211      0.9%     yes
+  3  kubectl get                  6x      4.2K      0.0%      no
+  4  terraform plan               3x       12K      0.0%      no
+```
+
+`no`-plugin rows are the best candidates. Only `command` + first non-flag arg is stored locally (capped at 10k rows) — never full arguments, output, or secrets.
 
 ### Filtering any command
 
