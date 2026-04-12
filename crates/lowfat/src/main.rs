@@ -4,7 +4,7 @@ mod filters;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "lowfat", version = "0.1.0")]
+#[command(name = "lowfat", version)]
 #[command(about = "Token-aware command filter for LLM environments")]
 struct Cli {
     #[command(subcommand)]
