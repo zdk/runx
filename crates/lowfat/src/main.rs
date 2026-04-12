@@ -73,6 +73,8 @@ enum HistoryAction {
         #[arg(default_value = "20")]
         limit: usize,
     },
+    /// Export all invocation rows as JSON to stdout (for backup / analysis)
+    Export,
 }
 
 #[derive(Subcommand)]
@@ -118,6 +120,7 @@ fn main() {
         Some(Commands::Audit { limit }) => commands::audit::run(limit),
         Some(Commands::History { action }) => match action {
             Some(HistoryAction::Candidates { limit }) => commands::candidates::run(limit),
+            Some(HistoryAction::Export) => commands::history_export::run(),
             None => commands::candidates::run(20),
         },
         Some(Commands::ShellInit { shell }) => commands::shell_init::run(&shell),

@@ -77,7 +77,10 @@ pub fn run(limit: usize) -> Result<()> {
 
     println!();
     println!(
-        "  {DIM}ranked by runs × avg tokens × (1 − savings). {MAGENTA}no{RESET}{DIM}-plugin rows are the best targets — see docs/PLUGINS.md{RESET}"
+        "  {DIM}Tip: rows marked {MAGENTA}\"no\"{RESET}{DIM} have no filter yet — good plugin candidates.{RESET}"
+    );
+    println!(
+        "       {DIM}Scaffold one with:{RESET} {BOLD}lowfat plugin new <command>{RESET}"
     );
     println!();
 

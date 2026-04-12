@@ -13,13 +13,12 @@ Wrap commands as shell functions and pipe them through composable processors lik
   <img src="docs/demo.gif" alt="lowfat demo: git diff before and after" width="700">
 </p>
 
-_Key features_,
+### Core focus
 
-- You own your data — customize or add your own filters in shell script.
-- Composable, pipe-based processing stages.
-- Per-project pipeline customization.
-- Built-in secret redaction.
-- No telemetry.
+- **Lightweight** — single binary, no daemon, no background services.
+- **Local-first** — your data never leaves your machine. No telemetry.
+- **Composable** — UNIX-style pipes, not magic. Mix built-ins and your own filters.
+- **User-owned** — `lowfat history` shows what you run most; you write plugins for your workflow.
 
 ### Install
 

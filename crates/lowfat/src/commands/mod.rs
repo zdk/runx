@@ -4,6 +4,7 @@ pub mod filters;
 pub mod gain;
 pub mod help;
 pub mod candidates;
+pub mod history_export;
 pub mod hook;
 pub mod level;
 pub mod pipeline;

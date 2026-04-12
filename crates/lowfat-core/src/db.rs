@@ -39,6 +39,18 @@ pub struct HistoryRow {
     pub score: f64,
 }
 
+/// Exported invocation row (user-driven backup / analysis).
+#[derive(Debug)]
+pub struct InvocationExport {
+    pub timestamp: String,
+    pub command: String,
+    pub subcommand: String,
+    pub raw_tokens: u64,
+    pub filtered_tokens: u64,
+    pub had_plugin: bool,
+    pub exit_code: i32,
+}
+
 /// Max rows retained in the `invocations` table. Oldest are evicted on insert.
 const INVOCATIONS_CAP: i64 = 10_000;
 
@@ -170,6 +182,27 @@ impl Db {
             [INVOCATIONS_CAP],
         )?;
         Ok(())
+    }
+
+    /// Export all invocation rows (oldest first) for user-driven backup.
+    /// Returns `(timestamp, command, subcommand, raw_tokens, filtered_tokens, had_plugin, exit_code)`.
+    pub fn export_invocations(&self) -> Result<Vec<InvocationExport>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT timestamp, command, subcommand, raw_tokens, filtered_tokens, had_plugin, exit_code
+             FROM invocations ORDER BY id ASC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(InvocationExport {
+                timestamp: row.get(0)?,
+                command: row.get(1)?,
+                subcommand: row.get(2)?,
+                raw_tokens: row.get::<_, i64>(3)? as u64,
+                filtered_tokens: row.get::<_, i64>(4)? as u64,
+                had_plugin: row.get::<_, i64>(5)? != 0,
+                exit_code: row.get(6)?,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
     /// Rank command+subcommand pairs as plugin candidates.
