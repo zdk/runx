@@ -15,10 +15,10 @@ Wrap commands as shell functions and pipe them through composable processors lik
 
 ### Core focus
 
-- **Lightweight** — single binary, no daemon, no background services.
-- **Local-first** — your data never leaves your machine. No telemetry.
-- **Composable** — UNIX-style pipes, not magic. Mix built-ins and your own filters.
-- **User-owned** — `lowfat history` shows what you run most; you write plugins for your workflow.
+- **Lightweight** — Small single binary, small core; but extensible.
+- **Local-first** — No telemetry; you own your data.
+- **Composable** — UNIX-style pipes, mix built-ins and your own filters; not magic.
+- **User-owned** — `lowfat history` shows what you run most; allow you to customize for your usecase.
 
 ### Install
 
@@ -90,15 +90,15 @@ LOWFAT_LEVEL=lite lowfat git log  # per-command override
 
 #### Inspecting state
 
-| Command             | Shows                                         |
-| ------------------- | --------------------------------------------- |
-| `config`            | resolved config, validates `.lowfat`          |
-| `filters`           | enabled/disabled filters                      |
-| `pipeline <cmd>`    | active pipeline for a command                 |
-| `gain`              | lifetime token savings report                 |
-| `history`           | plugin candidates, ranked (see below)         |
-| `audit`             | recent plugin executions                      |
-| `status`            | compact status badge                          |
+| Command          | Shows                                 |
+| ---------------- | ------------------------------------- |
+| `config`         | resolved config, validates `.lowfat`  |
+| `filters`        | enabled/disabled filters              |
+| `pipeline <cmd>` | active pipeline for a command         |
+| `gain`           | lifetime token savings report         |
+| `history`        | plugin candidates, ranked (see below) |
+| `audit`          | recent plugin executions              |
+| `status`         | compact status badge                  |
 
 ### Config file
 
