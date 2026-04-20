@@ -35,6 +35,7 @@ pub struct HistoryRow {
     pub runs: u64,
     pub avg_raw_tokens: f64,
     pub savings_pct: f64,
+    pub avg_saved_tokens: f64,
     pub plugin_ratio: f64,
     pub score: f64,
 }
@@ -305,6 +306,7 @@ impl Db {
                     CASE WHEN SUM(raw_tokens) > 0
                          THEN 100.0 * (1.0 - 1.0 * SUM(filtered_tokens) / SUM(raw_tokens))
                          ELSE 0 END AS savings_pct,
+                    AVG(raw_tokens - filtered_tokens) AS avg_saved,
                     AVG(had_plugin) AS plugin_ratio,
                     COUNT(*) * AVG(raw_tokens) *
                         (CASE WHEN SUM(raw_tokens) > 0
@@ -312,6 +314,7 @@ impl Db {
                               ELSE 0 END) AS score
              FROM invocations
              GROUP BY command, subcommand
+             HAVING SUM(raw_tokens) > 0
              ORDER BY score DESC
              LIMIT ?1",
         )?;
@@ -322,8 +325,9 @@ impl Db {
                 runs: row.get::<_, i64>(2)? as u64,
                 avg_raw_tokens: row.get(3)?,
                 savings_pct: row.get(4)?,
-                plugin_ratio: row.get(5)?,
-                score: row.get(6)?,
+                avg_saved_tokens: row.get::<_, f64>(5)?.max(0.0),
+                plugin_ratio: row.get(6)?,
+                score: row.get(7)?,
             })
         })?;
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)

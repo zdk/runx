@@ -16,7 +16,9 @@ fn fmt_tokens(n: f64) -> String {
     } else if n >= 1_000.0 {
         format!("{:.1}K", n / 1_000.0)
     } else {
-        format!("{:.0}", n)
+        // One decimal so avg raw / avg saved reconcile with the % column
+        // (e.g. 77.3 × 73.7% ≈ 57.0, which reads clean).
+        format!("{n:.1}")
     }
 }
 
@@ -39,8 +41,8 @@ pub fn run(limit: usize) -> Result<()> {
     }
 
     println!(
-        "  {DIM}{:>3}  {:<25} {:>5}  {:>9}  {:>8}  {:>10}{RESET}",
-        "#", "command", "runs", "avg raw", "savings", "has_plugin"
+        "  {DIM}{:>3}  {:<25} {:>5}  {:>9}  {:>9}  {:>8}  {:>10}{RESET}",
+        "#", "command", "runs", "avg raw", "avg saved", "savings", "has_plugin"
     );
 
     for (i, r) in rows.iter().enumerate() {
@@ -50,9 +52,14 @@ pub fn run(limit: usize) -> Result<()> {
         } else {
             format!("{} {}", r.command, r.subcommand)
         };
+        // Under-performing filter: has a plugin but isn't saving much,
+        // on output big enough that it should be. Same magenta as
+        // "no plugin" — both signal "act on this row".
+        let underperforming =
+            r.plugin_ratio >= 0.5 && r.savings_pct < 20.0 && r.avg_raw_tokens > 50.0;
         let save_color = if r.savings_pct >= 50.0 {
             DIM
-        } else if r.plugin_ratio < 0.5 {
+        } else if r.plugin_ratio < 0.5 || underperforming {
             MAGENTA
         } else {
             YELLOW
@@ -67,11 +74,12 @@ pub fn run(limit: usize) -> Result<()> {
         // Pad the visible text first so color codes don't break alignment.
         let plugin_mark = format!("{plugin_color}{plugin_text:>10}{RESET}");
         println!(
-            "  {BOLD}{:>3}{RESET}  {CYAN}{:<25}{RESET} {:>4}x  {:>9}  {save_color}{:>7.1}%{RESET}  {}",
+            "  {BOLD}{:>3}{RESET}  {CYAN}{:<25}{RESET} {:>4}x  {:>9}  {:>9}  {save_color}{:>7.1}%{RESET}  {}",
             rank,
             label,
             r.runs,
             fmt_tokens(r.avg_raw_tokens),
+            fmt_tokens(r.avg_saved_tokens),
             r.savings_pct,
             plugin_mark,
         );
@@ -83,6 +91,9 @@ pub fn run(limit: usize) -> Result<()> {
     );
     println!(
         "       {DIM}Scaffold one with:{RESET} {BOLD}lowfat plugin new <command>{RESET}"
+    );
+    println!(
+        "       {DIM}rows marked {MAGENTA}\"yes\"{RESET}{DIM} with {MAGENTA}low savings{RESET}{DIM} — the filter may need tuning.{RESET}"
     );
     println!();
 
