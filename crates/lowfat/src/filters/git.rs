@@ -12,11 +12,44 @@ impl FilterPlugin for GitFilter {
             name: "git-compact".into(),
             version: env!("CARGO_PKG_VERSION").into(),
             commands: vec!["git".into()],
+            // The first four have dedicated filter arms below; the rest are
+            // listed so `lowfat history` breaks them out by subcommand instead
+            // of collapsing them under bare `git`. They fall through to the
+            // generic head_nonblank handler, which is fine for typically-short
+            // output like `git add` or `git commit`.
             subcommands: vec![
                 "status".into(),
                 "log".into(),
                 "diff".into(),
                 "show".into(),
+                "add".into(),
+                "commit".into(),
+                "checkout".into(),
+                "switch".into(),
+                "restore".into(),
+                "branch".into(),
+                "merge".into(),
+                "rebase".into(),
+                "reset".into(),
+                "revert".into(),
+                "cherry-pick".into(),
+                "stash".into(),
+                "tag".into(),
+                "fetch".into(),
+                "pull".into(),
+                "push".into(),
+                "clone".into(),
+                "remote".into(),
+                "init".into(),
+                "config".into(),
+                "blame".into(),
+                "reflog".into(),
+                "describe".into(),
+                "rm".into(),
+                "mv".into(),
+                "clean".into(),
+                "bisect".into(),
+                "grep".into(),
             ],
         }
     }

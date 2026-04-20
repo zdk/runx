@@ -88,9 +88,10 @@ pub fn run(args: &[String]) -> i32 {
                 .unwrap_or_default(),
         });
         // Usage history — command+subcommand only, no args. Powers `lowfat history`.
+        let known = known_subcommands(cmd, &plugin_map, &external_plugins, &external_map);
         let _ = db.record_invocation(&InvocationRecord {
             command: cmd.clone(),
-            subcommand: history_subcommand(&subcommand),
+            subcommand: history_subcommand(&subcommand, &known),
             raw_tokens: lowfat_core::tokens::estimate_tokens(&raw) as u64,
             filtered_tokens: lowfat_core::tokens::estimate_tokens(&filtered) as u64,
             had_plugin: filter_name.is_some(),
@@ -180,10 +181,67 @@ fn load_external_plugin(
     None
 }
 
-/// Normalise the first arg into a subcommand for history. Flags (e.g. `-la`)
-/// are not subcommands, so commands like `ls -la` are grouped under `""`.
-fn history_subcommand(first: &str) -> String {
-    if first.starts_with('-') { String::new() } else { first.to_string() }
+/// Normalise the first arg into a subcommand for history.
+///
+/// Hybrid: if the command has a registered plugin declaring `subcommands`,
+/// only accept `first` when it's in that list. Otherwise fall back to a
+/// heuristic — a bare identifier is a subcommand, anything else (paths,
+/// flags, files with extensions) is not. This keeps `ls /path` grouped
+/// under `""` while preserving breakdown for `cargo build` etc.
+fn history_subcommand(first: &str, known: &[String]) -> String {
+    if first.is_empty() {
+        return String::new();
+    }
+    if !known.is_empty() {
+        return if known.iter().any(|s| s == first) {
+            first.to_string()
+        } else {
+            String::new()
+        };
+    }
+    if looks_like_subcommand(first) {
+        first.to_string()
+    } else {
+        String::new()
+    }
+}
+
+/// Heuristic: a subcommand looks like a bare lowercase identifier.
+/// Excludes flags, paths, files with extensions, etc.
+fn looks_like_subcommand(s: &str) -> bool {
+    let mut chars = s.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if !first.is_ascii_lowercase() {
+        return false;
+    }
+    s.chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
+}
+
+/// Known subcommands for `cmd`, pulled from builtin filters or community plugins.
+/// Empty means "no registered plugin declares subcommands for this command".
+fn known_subcommands(
+    cmd: &str,
+    builtins: &HashMap<String, Box<dyn FilterPlugin>>,
+    plugins: &[DiscoveredPlugin],
+    cmd_map: &HashMap<String, usize>,
+) -> Vec<String> {
+    if let Some(f) = builtins.get(cmd) {
+        let subs = f.info().subcommands;
+        if !subs.is_empty() {
+            return subs;
+        }
+    }
+    if let Some(&idx) = cmd_map.get(cmd) {
+        if let Some(ref subs) = plugins[idx].manifest.plugin.subcommands {
+            if !subs.is_empty() {
+                return subs.clone();
+            }
+        }
+    }
+    Vec::new()
 }
 
 /// Run command unfiltered, still track as passthrough.
@@ -215,7 +273,7 @@ fn passthrough(cmd: &str, args: &[String], config: &RunfConfig) -> i32 {
         let tokens = lowfat_core::tokens::estimate_tokens(&raw) as u64;
         let _ = db.record_invocation(&InvocationRecord {
             command: cmd.to_string(),
-            subcommand: history_subcommand(&subcommand),
+            subcommand: history_subcommand(&subcommand, &[]),
             raw_tokens: tokens,
             filtered_tokens: tokens,
             had_plugin: false,
@@ -225,4 +283,34 @@ fn passthrough(cmd: &str, args: &[String], config: &RunfConfig) -> i32 {
 
     print!("{raw}");
     exit_code
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn heuristic_accepts_bare_identifier() {
+        assert_eq!(history_subcommand("status", &[]), "status");
+        assert_eq!(history_subcommand("build", &[]), "build");
+        assert_eq!(history_subcommand("pip-compile", &[]), "pip-compile");
+    }
+
+    #[test]
+    fn heuristic_rejects_paths_and_flags() {
+        assert_eq!(history_subcommand("/tmp", &[]), "");
+        assert_eq!(history_subcommand("./foo", &[]), "");
+        assert_eq!(history_subcommand("-la", &[]), "");
+        assert_eq!(history_subcommand("file.rs", &[]), "");
+        assert_eq!(history_subcommand("Documents", &[]), "");
+        assert_eq!(history_subcommand("", &[]), "");
+    }
+
+    #[test]
+    fn known_list_overrides_heuristic() {
+        let known = vec!["status".to_string(), "log".to_string()];
+        assert_eq!(history_subcommand("status", &known), "status");
+        // `checkout` is a valid identifier but not in the known list → dropped.
+        assert_eq!(history_subcommand("checkout", &known), "");
+    }
 }

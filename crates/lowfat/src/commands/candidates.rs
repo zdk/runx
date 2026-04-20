@@ -39,8 +39,8 @@ pub fn run(limit: usize) -> Result<()> {
     }
 
     println!(
-        "  {DIM}{:>3}  {:<25} {:>5}  {:>9}  {:>8}  {:>6}{RESET}",
-        "#", "command", "runs", "avg raw", "savings", "plugin"
+        "  {DIM}{:>3}  {:<25} {:>5}  {:>9}  {:>8}  {:>10}{RESET}",
+        "#", "command", "runs", "avg raw", "savings", "has_plugin"
     );
 
     for (i, r) in rows.iter().enumerate() {
@@ -57,15 +57,17 @@ pub fn run(limit: usize) -> Result<()> {
         } else {
             YELLOW
         };
-        let plugin_mark = if r.plugin_ratio >= 0.99 {
-            format!("{DIM}yes{RESET}")
+        let (plugin_text, plugin_color) = if r.plugin_ratio >= 0.99 {
+            ("yes".to_string(), DIM)
         } else if r.plugin_ratio <= 0.01 {
-            format!("{MAGENTA}no{RESET}")
+            ("no".to_string(), MAGENTA)
         } else {
-            format!("{YELLOW}{:.0}%{RESET}", r.plugin_ratio * 100.0)
+            (format!("{:.0}%", r.plugin_ratio * 100.0), YELLOW)
         };
+        // Pad the visible text first so color codes don't break alignment.
+        let plugin_mark = format!("{plugin_color}{plugin_text:>10}{RESET}");
         println!(
-            "  {BOLD}{:>3}{RESET}  {CYAN}{:<25}{RESET} {:>4}x  {:>9}  {save_color}{:>7.1}%{RESET}  {:>6}",
+            "  {BOLD}{:>3}{RESET}  {CYAN}{:<25}{RESET} {:>4}x  {:>9}  {save_color}{:>7.1}%{RESET}  {}",
             rank,
             label,
             r.runs,
